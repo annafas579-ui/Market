@@ -18,9 +18,9 @@ from aiogram.exceptions import TelegramBadRequest
 # ==========================================
 # НАСТРОЙКИ БОТА
 # ==========================================
-# Токен будет браться из переменных окружения Railway (или вставьте сюда вручную)
-BOT_TOKEN = os.getenv("BOT_TOKEN", "ВАШ_ТОКЕН_ЕСЛИ_ЗАПУСКАЕТЕ_ЛОКАЛЬНО") 
-ADMIN_USERNAME = "chingiz_trader"      # <-- Ваш юзернейм (без @)
+# На Railway токен берется из переменных (Variables). Если запускаешь локально — вставь свой токен вместо "ВАШ_ТОКЕН"
+BOT_TOKEN = os.getenv("BOT_TOKEN", "ВАШ_ТОКЕН") 
+ADMIN_USERNAME = "chingiz_trader"  # <-- Твой юзернейм (без @)
 
 # Путь для базы данных (для Railway Volume)
 DB_PATH = '/app/data/bot_database.db'
@@ -32,7 +32,7 @@ def is_admin(user):
 # БАЗА ДАННЫХ (SQLite)
 # ==========================================
 def init_db():
-    # Создаем папку, если ее нет (нужно для Railway)
+    # Создаем папку для базы (нужно для Railway)
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     
     conn = sqlite3.connect(DB_PATH)
@@ -71,7 +71,6 @@ def add_profit(user_id):
 def set_access(user_id, days):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
     cursor.execute("INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)", (user_id, "user"))
     
     days = int(days)
@@ -319,6 +318,7 @@ async def create_offer_logic(message: Message, is_business: bool):
     currency_icon = "⭐️" if currency == "stars" else "GRAM"
     gift_name_html = f"<a href='{nft_link if nft_link.startswith('http') else f'https://{nft_link}'}'>{format_nft_name(nft_link)}</a>"
     
+    # Данные продавца
     seller_username, seller_name, seller_id = message.from_user.username, message.from_user.full_name, message.from_user.id
 
     offer_id = str(uuid.uuid4())[:8]
@@ -383,6 +383,7 @@ async def accept_offer(callback: CallbackQuery):
     t = TEXTS[data['lang']]
     add_profit(data['seller_id'])
     
+    # ДИНАМИЧЕСКИЙ ПЕРЕХОД НА ПРОФИЛЬ ПРОДАВЦА
     target = f"@{data['seller_username']}" if data['seller_username'] else data['seller_name']
     url = f"https://t.me/{data['seller_username']}" if data['seller_username'] else f"tg://user?id={data['seller_id']}"
 
@@ -400,7 +401,7 @@ async def accept_offer(callback: CallbackQuery):
 async def main():
     init_db()
     logging.basicConfig(level=logging.INFO)
-    print("Бот запущен и готов к работе...")
+    print("Бот запущен...")
     await dp.start_polling(bot, allowed_updates=["message", "business_connection", "business_message", "callback_query", "inline_query"])
 
 if __name__ == "__main__":
